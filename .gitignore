@@ -1,0 +1,10 @@
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Resquícios de terminal Windows (nomes reservados)
+nul
+
+# Dependências locais (se houver no futuro)
+node_modules/

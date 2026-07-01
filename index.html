@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f5e3a" />
+  <meta name="description" content="Coletor territorial offline com formulário dinâmico, GNSS e exportação geoespacial." />
+  <title>Coletor Territorial</title>
+
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+
+  <!-- Leaflet (CSS e JS via CDN; o Service Worker faz cache para uso offline) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin="" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <!-- Barra superior -->
+  <header class="topbar" role="banner">
+    <div class="topbar-title">
+      <span class="logo" aria-hidden="true">🗺️</span>
+      <h1>Coletor Territorial</h1>
+    </div>
+    <div class="topbar-status">
+      <span id="connStatus" class="badge badge-info" aria-live="polite" title="Status de conexão">--</span>
+      <span id="recordsCount" class="badge badge-muted" title="Total de registros">0 registros</span>
+    </div>
+  </header>
+
+  <!-- Área principal: telas -->
+  <main id="app" class="app" role="main">
+
+    <!-- TELA: CONFIGURAR FORMULÁRIO -->
+    <section id="screen-form" class="screen" aria-labelledby="title-form">
+      <h2 id="title-form">Configurar Formulário</h2>
+      <p class="hint">Construa os campos que serão preenchidos em campo.</p>
+
+      <form id="formMeta" class="card">
+        <label for="formName">Nome do formulário</label>
+        <input type="text" id="formName" required placeholder="Ex.: Cadastro Territorial de Campo" />
+
+        <label for="formDesc">Descrição</label>
+        <textarea id="formDesc" rows="2" placeholder="Descrição curta da atividade"></textarea>
+
+        <div class="row">
+          <button type="submit" class="btn btn-primary" id="saveFormMetaBtn">Salvar formulário</button>
+          <button type="button" class="btn btn-ghost" id="loadDemoFormBtn">Carregar exemplo</button>
+        </div>
+      </form>
+
+      <div class="card">
+        <h3>Campos</h3>
+        <div id="fieldsList" class="fields-list" aria-live="polite"></div>
+
+        <details class="add-field">
+          <summary class="btn btn-secondary">+ Adicionar campo</summary>
+          <div class="card-inner">
+            <div class="grid-2">
+              <div>
+                <label for="fLabel">Rótulo</label>
+                <input type="text" id="fLabel" placeholder="Ex.: Nome do local" />
+              </div>
+              <div>
+                <label for="fType">Tipo</label>
+                <select id="fType">
+                  <option value="text">Texto curto</option>
+                  <option value="textarea">Texto longo</option>
+                  <option value="integer">Número inteiro</option>
+                  <option value="decimal">Número decimal</option>
+                  <option value="select">Lista suspensa</option>
+                  <option value="multiselect">Múltipla escolha</option>
+                  <option value="date">Data</option>
+                  <option value="time">Hora</option>
+                  <option value="datetime">Data e hora</option>
+                  <option value="boolean">Sim/Não</option>
+                </div>
+              </div>
+              <div>
+                <label for="fOptions">Opções (separadas por vírgula)</label>
+                <input type="text" id="fOptions" placeholder="Escola, Comunidade, Porto" />
+              </div>
+              <div>
+                <label for="fRequired">Obrigatório</label>
+                <select id="fRequired">
+                  <option value="false">Não</option>
+                  <option value="true">Sim</option>
+                </select>
+              </div>
+            </div>
+            <button type="button" class="btn btn-primary" id="addFieldBtn">Adicionar à lista</button>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- TELA: COLETAR REGISTRO -->
+    <section id="screen-collect" class="screen hidden" aria-labelledby="title-collect">
+      <h2 id="title-collect">Coletar Registro</h2>
+
+      <div class="card gnss-card" aria-live="polite">
+        <div class="gnss-row">
+          <div>
+            <strong>Latitude:</strong> <span id="gnssLat">--</span><br/>
+            <strong>Longitude:</strong> <span id="gnssLon">--</span><br/>
+            <strong>Precisão:</strong> <span id="gnssAcc">--</span> <span id="gnssAccClass"></span><br/>
+            <strong>Altitude:</strong> <span id="gnssAlt">--</span> m<br/>
+            <strong>Captura:</strong> <span id="gnssTime">--</span>
+          </div>
+        </div>
+        <div class="row">
+          <button type="button" class="btn btn-primary" id="captureBtn">📍 Capturar coordenada</button>
+          <button type="button" class="btn btn-secondary" id="watchBtn">📈 Monitorar</button>
+          <button type="button" class="btn btn-ghost" id="stopWatchBtn">Parar</button>
+          <button type="button" class="btn btn-ghost" id="manualCoordBtn">✏️ Manual</button>
+        </div>
+        <div id="manualCoord" class="manual-coord hidden">
+          <div class="grid-2">
+            <div>
+              <label for="manualLat">Latitude</label>
+              <input type="number" step="any" id="manualLat" placeholder="-3.1019" />
+            </div>
+            <div>
+              <label for="manualLon">Longitude</label>
+              <input type="number" step="any" id="manualLon" placeholder="-60.0250" />
+            </div>
+          </div>
+          <label for="manualReason">Motivo do ajuste manual</label>
+          <input type="text" id="manualReason" placeholder="Ex.: Refinamento sobre foto aérea" />
+          <button type="button" class="btn btn-secondary" id="applyManualBtn">Aplicar coordenada manual</button>
+        </div>
+      </div>
+
+      <form id="collectForm" class="card">
+        <h3>Atributos</h3>
+        <div id="collectFields" class="fields-render"></div>
+        <div class="row">
+          <button type="submit" class="btn btn-primary" id="saveRecordBtn">💾 Salvar registro</button>
+          <button type="reset" class="btn btn-ghost" id="clearFormBtn">Limpar</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- TELA: MAPA -->
+    <section id="screen-map" class="screen hidden" aria-labelledby="title-map">
+      <h2 id="title-map">Mapa</h2>
+      <div class="card filters-card">
+        <div class="grid-2">
+          <div>
+            <label for="filterForm">Filtrar por formulário</label>
+            <select id="filterForm"><option value="">Todos</option></select>
+          </div>
+          <div>
+            <label for="filterCat">Filtrar por categoria</label>
+            <select id="filterCat"><option value="">Todas</option></select>
+          </div>
+        </div>
+        <div class="row">
+          <button type="button" class="btn btn-secondary" id="centerBtn">🎯 Centralizar em mim</button>
+          <button type="button" class="btn btn-ghost" id="fitAllBtn"> Ajustar aos pontos</button>
+        </div>
+      </div>
+      <div id="map" class="map-container" role="application" aria-label="Mapa dos pontos coletados"></div>
+    </section>
+
+    <!-- TELA: REGISTROS -->
+    <section id="screen-records" class="screen hidden" aria-labelledby="title-records">
+      <h2 id="title-records">Registros</h2>
+      <div class="card">
+        <label for="searchRecords">Buscar</label>
+        <input type="search" id="searchRecords" placeholder="Buscar por texto..." />
+        <div class="table-wrap">
+          <table id="recordsTable" class="records-table">
+            <thead>
+              <tr>
+                <th>Data</th><th>Formulário</th><th>Local</th><th>Lat</th><th>Lon</th><th>Prec.</th><th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="recordsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TELA: EXPORTAÇÃO -->
+    <section id="screen-export" class="screen hidden" aria-labelledby="title-export">
+      <h2 id="title-export">Exportação</h2>
+      <div class="card">
+        <div class="grid-2">
+          <div>
+            <label for="exportForm">Formulário</label>
+            <select id="exportForm"><option value="">Todos</option></select>
+          </div>
+          <div>
+            <label for="csvSep">Separador CSV</label>
+            <select id="csvSep">
+              <option value=";">Ponto e vírgula (;)</option>
+              <option value=",">Vírgula (,)</option>
+            </select>
+          </div>
+        </div>
+        <div class="row export-buttons">
+          <button type="button" class="btn btn-primary" id="exportCsvBtn">📊 CSV</button>
+          <button type="button" class="btn btn-primary" id="exportKmlBtn">🌍 KML</button>
+          <button type="button" class="btn btn-primary" id="exportGeoJsonBtn">📐 GeoJSON</button>
+          <button type="button" class="btn btn-primary" id="exportShpBtn">🗺️ Shapefile (.zip)</button>
+        </div>
+        <div id="shpMapping" class="shp-mapping hidden" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <!-- TELA: CONFIGURAÇÕES -->
+    <section id="screen-settings" class="screen hidden" aria-labelledby="title-settings">
+      <h2 id="title-settings">Configurações</h2>
+      <div class="card">
+        <h3>Ambiente</h3>
+        <p><strong>Protocolo:</strong> <span id="protocolInfo">--</span></p>
+        <p><strong>Armazenamento:</strong> <span id="storageInfo">--</span></p>
+        <p><strong>Versão:</strong> 2.0.0</p>
+        <div class="row">
+          <button type="button" class="btn btn-secondary" id="requestPersistBtn">Solicitar persistência</button>
+          <button type="button" class="btn btn-danger" id="wipeBtn">Apagar todos os dados</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Sobre</h3>
+        <p>Coletor territorial offline — formulário dinâmico, GNSS do celular, exportação CSV, KML, GeoJSON e Shapefile.</p>
+        <p class="hint">Funciona melhor instalado como PWA em HTTPS. Em HTTP, o GNSS é bloqueado pelos navegadores.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Navegação inferior -->
+  <nav class="bottomnav" role="navigation" aria-label="Navegação principal">
+    <button class="navbtn active" data-screen="form" aria-label="Formulário">📝<span>Form</span></button>
+    <button class="navbtn" data-screen="collect" aria-label="Coletar">📍<span>Coleta</span></button>
+    <button class="navbtn" data-screen="map" aria-label="Mapa">🗺️<span>Mapa</span></button>
+    <button class="navbtn" data-screen="records" aria-label="Registros">📋<span>Dados</span></button>
+    <button class="navbtn" data-screen="export" aria-label="Exportar">📤<span>Export</span></button>
+    <button class="navbtn" data-screen="settings" aria-label="Configurações">⚙️<span>Ajustes</span></button>
+  </nav>
+
+  <!-- Toast de mensagens -->
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <!-- Modal de confirmação -->
+  <div id="confirmModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="modal-card">
+      <h3 id="confirmTitle">Confirmar</h3>
+      <p id="confirmMsg"></p>
+      <div class="row right">
+        <button type="button" class="btn btn-ghost" id="confirmCancel">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="confirmOk">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+          crossorigin=""></script>
+  <!-- shp-write é carregado via import() dinâmico no app.js (módulo ESM) -->
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

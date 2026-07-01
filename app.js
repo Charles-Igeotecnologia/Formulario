@@ -1731,9 +1731,62 @@ const App = {
 window.addEventListener('DOMContentLoaded', () => {
   App.init();
 
-  // Registra Service Worker
+  // Registra Service Worker com detecção de atualização automática
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(err =>
-      console.error('SW registration failed', err));
+    let refreshing = false;
+
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+      // Detecta novo SW instalado em segundo plano
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            // Há um SW novo pronto — mostra banner
+            UpdateBanner.show();
+          }
+        });
+      });
+      // Verifica updates a cada 30 min (mesmo com aba aberta)
+      setInterval(() => reg.update().catch(()=>{}), 30 * 60 * 1000);
+    }).catch(err => console.error('SW registration failed', err));
+
+    // Quando o SW avisar que terminou a ativação, recarrega uma vez
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    });
   }
 });
+
+// ------------------------------------------------------------
+// Banner de "Atualização disponível"
+// ------------------------------------------------------------
+const UpdateBanner = {
+  _el: null,
+  _waitingReg: null,
+
+  show() {
+    if (this._el) return; // já visível
+    const el = document.createElement('div');
+    el.className = 'update-banner';
+    el.setAttribute('role', 'alert');
+    el.innerHTML = '<span>🔄 Nova versão disponível.</span>';
+    const btn = document.createElement('button');
+    btn.textContent = 'Atualizar';
+    btn.addEventListener('click', () => {
+      // força o SW esperante a assumir; controllerchange recarrega
+      if (navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+      }
+    });
+    el.appendChild(btn);
+    document.body.appendChild(el);
+    this._el = el;
+  },
+
+  hide() {
+    if (this._el) { this._el.remove(); this._el = null; }
+  }
+};

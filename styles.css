@@ -297,6 +297,36 @@ details.add-field > summary::-webkit-details-marker { display: none; }
 .navbtn.active { color: var(--green-700); }
 .navbtn:focus-visible { outline: 3px solid #ffd54a; outline-offset: -3px; }
 
+/* ---------- Banner de atualização ---------- */
+.update-banner {
+  position: fixed;
+  bottom: 78px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--green-900);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.3);
+  z-index: 2500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 92vw;
+  font-size: .9rem;
+}
+.update-banner button {
+  min-height: 36px;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 6px;
+  font-weight: 700;
+  cursor: pointer;
+  background: #fff;
+  color: var(--green-900);
+}
+.update-banner button:focus-visible { outline: 3px solid #ffd54a; outline-offset: 2px; }
+
 /* ---------- Toast ---------- */
 .toast {
   position: fixed;
